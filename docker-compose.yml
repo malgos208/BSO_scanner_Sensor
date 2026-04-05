@@ -10,7 +10,9 @@ services:
       - CLIENT_NAME=${CLIENT_NAME}
       - SCAN_RANGE=${SCAN_RANGE}
       - TUNNEL_PORT=${PORT}
-      
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+
   tunnel:
     image: kroniak/ssh-client:latest
     container_name: sensor_tunnel_${CLIENT_NAME}

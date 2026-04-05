@@ -15,4 +15,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY sensor_agent.py .
 
 # Start agenta
-CMD ["python3", "sensor_agent.py"]
+CMD ["python3", "-u", "sensor_agent.py"]

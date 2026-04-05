@@ -40,7 +40,7 @@ def send_to_master():
     active_hosts = run_host_discovery()
 
     payload = {
-        "sensor": SENSOR_ID,
+        "sensor_id": SENSOR_ID,
         "hosts": active_hosts
     }
     try:
