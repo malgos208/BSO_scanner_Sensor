@@ -1,44 +1,62 @@
 import time
 import subprocess
 import requests
+import os
+import datetime
 
-MASTER_URL = "http://10.0.2.15:5000/ingest"
+# Pobieranie konfiguracji z ENV (z docker-compose)
+MASTER_URL = os.getenv("MASTER_URL")
+CLIENT_NAME = os.getenv("CLIENT_NAME")
+SCAN_RANGE = os.getenv("SCAN_RANGE")
 
-def run_scan():
+def log(message):
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{timestamp}] {message}")
+
+def run_host_discovery():
+    log(f"🔎 Rozpoczynanie skanowania sieci: {SCAN_RANGE}")
+    
+    # -sn: Ping scan (wykrywanie żywych hostów bez skanowania portów - szybkie!)
+    # -oG -: Wyjście w formacie "grepable" dla łatwego parsowania
     result = subprocess.run(
-        ["nmap", "-sn", "10.0.2.7/24"],
+        ["nmap", "-sn"] + SCAN_RANGE.split() + ["-oG", "-"], # podział, jeśli jest kilka zakresów podsieci
         capture_output=True,
         text=True
     )
 
     hosts = []
-
     for line in result.stdout.splitlines():
-        if "Nmap scan report for" in line:
-            host = line.split("for")[-1].strip()
-            host = host.replace("(", "").replace(")", "")
-            hosts.append(host)
+        if "Status: Up" in line:
+            # Wyciągamy IP z linii typu: Host: 192.168.1.1 () Status: Up
+            parts = line.split()
+            if len(parts) > 1:
+                hosts.append(parts[1])
 
+    log(f"✅ Znaleziono {len(hosts)} aktywnych hostów.")
     return hosts
 
-def send(hosts):
-    print("🚀 SENSOR START")
-    print("📡 HOSTS:", hosts)
+def send_to_master(hosts):
     payload = {
-        "sensor": "sensor_1",
+        "sensor": CLIENT_NAME,
         "hosts": hosts
     }
-
-    r = requests.post(MASTER_URL, json=payload)
-    print(r.json())
-
+    try:
+        r = requests.post(MASTER_URL, json=payload, timeout=10)
+        log(f"📡 Wysłano dane do Mastera. Status: {r.status_code}")
+    except Exception as e:
+        log(f"❌ Błąd połączenia z Masterem: {e}")
 
 if __name__ == "__main__":
+    log(f"🚀 Sensor Agent uruchomiony dla {CLIENT_NAME}")
     while True:
         try:
-            hosts = run_scan()
-            send(hosts)
+            active_hosts = run_host_discovery()
+            if active_hosts:
+                send_to_master(active_hosts)
+            else:
+                log("Brak aktywnych hostów w sieci.")
         except Exception as e:
-            print("ERROR:", e)
+            log(f"Błąd krytyczny: {e}")
 
-        time.sleep(60)
+        # Odczekaj np. 1 godzinę przed kolejnym sprawdzeniem sieci
+        time.sleep(3600)

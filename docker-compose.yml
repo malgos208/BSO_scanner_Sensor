@@ -1,35 +1,25 @@
 services:
-  redis:
-    image: redis:alpine
-    container_name: sensor_redis
-    restart: always
-    command: ["redis-server", "--save", "", "--appendonly", "no"]
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-
-  sensor_app:
+  sensor_agent:
     build: .
-    container_name: sensor_app
-    working_dir: /app
-    volumes:
-      - ./:/app
+    container_name: sensor_agent_${CLIENT_NAME}
+    network_mode: host
     restart: unless-stopped
+    environment:
+      - MASTER_URL=http://${MASTER_IP}:5000/ingest
+      - CLIENT_NAME=${CLIENT_NAME}
+      - SCAN_RANGE=${SCAN_RANGE}
 
   tunnel:
     image: kroniak/ssh-client:latest
-    container_name: sensor_tunnel
+    container_name: sensor_tunnel_${CLIENT_NAME}
     volumes:
       - "./ssh_keys:/root/.ssh:ro"
+    # Tunelowanie wsteczne: Master:PORT -> Sensor:9390 (jeśli tam jest skaner)
     command: >
       ssh -o StrictHostKeyChecking=no
       -o ExitOnForwardFailure=yes
       -o ServerAliveInterval=60
       -v
-      -N -R 0.0.0.0:9024:10.0.2.15:9391 scanner_user@10.0.2.15 -p 2222 -i /root/.ssh/id_ed25519
+      -N -R 0.0.0.0:${TUNNEL_PORT}:localhost:9390
+      scanner_user@${MASTER_IP} -p 2222 -i /root/.ssh/id_ed25519
     restart: always
-
-volumes:
-  gvm_data:

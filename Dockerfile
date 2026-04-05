@@ -1,16 +1,18 @@
 FROM python:3.11-slim
 
+# Instalacja nmapa
 RUN apt-get update && apt-get install -y \
     nmap \
-    python3 \
-    python3-pip \
-    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY . .
+# Kopiowanie zależności
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-RUN pip install --no-cache-dir requests
+# Kopiowanie kodu agenta
+COPY sensor_agent.py .
 
+# Start agenta
 CMD ["python3", "sensor_agent.py"]
