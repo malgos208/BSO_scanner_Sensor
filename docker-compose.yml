@@ -5,10 +5,12 @@ services:
     network_mode: host
     restart: unless-stopped
     environment:
-      - MASTER_URL=http://${MASTER_IP}:5000/ingest
+      - MASTER_URL=http://${MASTER_IP}:5000
+      - SENSOR_ID=${SENSOR_ID}
       - CLIENT_NAME=${CLIENT_NAME}
       - SCAN_RANGE=${SCAN_RANGE}
-
+      - TUNNEL_PORT=${PORT}
+      
   tunnel:
     image: kroniak/ssh-client:latest
     container_name: sensor_tunnel_${CLIENT_NAME}

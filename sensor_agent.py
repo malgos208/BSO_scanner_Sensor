@@ -6,6 +6,7 @@ import datetime
 
 # Pobieranie konfiguracji z ENV (z docker-compose)
 MASTER_URL = os.getenv("MASTER_URL")
+SENSOR_ID = os.getenv("SENSOR_ID")
 CLIENT_NAME = os.getenv("CLIENT_NAME")
 SCAN_RANGE = os.getenv("SCAN_RANGE")
 
@@ -35,28 +36,30 @@ def run_host_discovery():
     log(f"✅ Znaleziono {len(hosts)} aktywnych hostów.")
     return hosts
 
-def send_to_master(hosts):
+def send_to_master():
+    active_hosts = run_host_discovery()
+
     payload = {
-        "sensor": CLIENT_NAME,
-        "hosts": hosts
+        "sensor": SENSOR_ID,
+        "hosts": active_hosts
     }
     try:
-        r = requests.post(MASTER_URL, json=payload, timeout=10)
+        r = requests.post(f"{MASTER_URL}/ingest", json=payload, timeout=10)
         log(f"📡 Wysłano dane do Mastera. Status: {r.status_code}")
     except Exception as e:
         log(f"❌ Błąd połączenia z Masterem: {e}")
 
 if __name__ == "__main__":
     log(f"🚀 Sensor Agent uruchomiony dla {CLIENT_NAME}")
+
+    send_to_master()
+
     while True:
         try:
-            active_hosts = run_host_discovery()
-            if active_hosts:
-                send_to_master(active_hosts)
-            else:
-                log("Brak aktywnych hostów w sieci.")
+            r = requests.get(f"{MASTER_URL}/check-tasks/{SENSOR_ID}", timeout=10)
+            if r.json().get("run_nmap"):
+                send_to_master()
         except Exception as e:
-            log(f"Błąd krytyczny: {e}")
+            log(f"Błąd: {e}")
 
-        # Odczekaj np. 1 godzinę przed kolejnym sprawdzeniem sieci
-        time.sleep(3600)
+        time.sleep(30) #sprawdza co 30s
