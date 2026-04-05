@@ -10,6 +10,9 @@ SENSOR_ID = os.getenv("SENSOR_ID")
 CLIENT_NAME = os.getenv("CLIENT_NAME")
 SCAN_RANGE = os.getenv("SCAN_RANGE")
 
+CHECK_INTERVAL = 30        # co 30s sprawdzanie
+SEND_INTERVAL = 7200      # co 2h wysyłka
+
 def log(message):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{timestamp}] {message}")
@@ -52,14 +55,27 @@ def send_to_master():
 if __name__ == "__main__":
     log(f"🚀 Sensor Agent uruchomiony dla {CLIENT_NAME}")
 
-    send_to_master()
+    last_sent = 0  # albo time.time() jeśli nie chcesz wysyłać od razu
 
     while True:
+        now = time.time()
+
         try:
+            # 🔁 sprawdzanie co 30s
             r = requests.get(f"{MASTER_URL}/check-tasks/{SENSOR_ID}", timeout=10)
+
             if r.json().get("run_nmap"):
+                log("⚡ Wymuszone skanowanie z mastera")
                 send_to_master()
+                last_sent = now  # reset timera
+
         except Exception as e:
             log(f"Błąd: {e}")
 
-        time.sleep(30) #sprawdza co 30s
+        # automatyczna wysyłka co godzinę
+        if now - last_sent >= SEND_INTERVAL:
+            log("Automatyczna wysyłka (co 2h)")
+            send_to_master()
+            last_sent = now
+
+        time.sleep(CHECK_INTERVAL)
