@@ -16,7 +16,7 @@ fi
 
 echo "🚀 Przygotowywanie Sensora dla: $CLIENT_NAME"
 
-# 1. Pobranie plików z GitHub (zamiast pisać je ręcznie)
+# 1. Pobranie plików z repozytorium
 git clone https://github.com/malgos208/BSO_scanner_Sensor.git bso_sensor_tmp
 mv bso_sensor_tmp/* .
 rm -rf bso_sensor_tmp
@@ -32,11 +32,8 @@ PUB_KEY=$(cat ./ssh_keys/id_ed25519.pub)
 
 # 3. Rejestracja w Masterze
 echo "📡 Rejestracja w Masterze ($MASTER_IP)..."
-#Budowanie obrazu sensor_agent
-docker compose build sensor_agent
 
-# 3. Rejestracja w Masterze
-echo "📡 Rejestracja w Masterze ($MASTER_IP)..."
+#Budowanie obrazu sensor_agent
 docker compose build sensor_agent
 
 SENSOR_ID=$(docker compose run --rm \
@@ -50,14 +47,13 @@ SENSOR_ID=$(docker compose run --rm \
     python3 /tmp/register.py
 )
 
-if [ -z "$SENSOR_ID" ] || [[ "$SENSOR_ID" == *"REGISTRATION_ERROR"* ]]; then
-    echo "❌ Błąd rejestracji."
+if [ $? -ne 0 ] || [ -z "$SENSOR_ID" ]; then
+    echo "❌ Błąd rejestracji. Sprawdź token i połączenie z Masterem."
     exit 1
 fi
-
 echo "✅ Zarejestrowano sensor: $SENSOR_ID"
 
-# 4. Generowanie pliku .env dla docker-compose (parametryzacja)
+# 4. Generowanie pliku .env dla docker-compose
 cat <<EOF > .env
 MASTER_IP=$MASTER_IP
 SENSOR_ID=$SENSOR_ID
@@ -66,5 +62,5 @@ SCAN_RANGE=$SCAN_RANGE
 EOF
 
 # 5. Uruchomienie
-docker compose up -d
+docker compose up -d --remove-orphans # --remove-orphans usuwa stare kontenery
 echo "🚀 Sensor działa w tle."
