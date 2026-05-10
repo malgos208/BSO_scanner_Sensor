@@ -36,7 +36,7 @@ echo "📡 Rejestracja w Masterze ($MASTER_IP)..."
 #Budowanie obrazu sensor_agent
 docker compose build sensor_agent
 
-SENSOR_ID=$(docker compose run --rm \
+REGISTER_OUTPUT=$(docker compose run --rm \
     -v "$(pwd)/ssh_keys/id_ed25519.pub:/tmp/pub_key:ro" \
     -v "$(pwd)/register.py:/tmp/register.py:ro" \
     -e CLIENT_NAME="$CLIENT_NAME" \
@@ -44,13 +44,23 @@ SENSOR_ID=$(docker compose run --rm \
     -e SCAN_RANGE="$SCAN_RANGE" \
     -e MASTER_IP="$MASTER_IP" \
     sensor_agent \
-    python3 /tmp/register.py
-)
+    python3 /tmp/register.py 2>&1)
+REGISTER_EXIT=$?
 
-if [ $? -ne 0 ] || [ -z "$SENSOR_ID" ]; then
-    echo "❌ Błąd rejestracji. Sprawdź token i połączenie z Masterem."
+echo "$REGISTER_OUTPUT"
+
+if [ $REGISTER_EXIT -ne 0 ]; then
+    echo "❌ Błąd rejestracji (kod $REGISTER_EXIT)"
     exit 1
 fi
+
+# Sprawdzamy, czy w wyjściu jest sensor_id
+SENSOR_ID=$(echo "$REGISTER_OUTPUT" | grep -oE '[0-9a-f]{8}')
+if [ -z "$SENSOR_ID" ]; then
+    echo "❌ Nie udało się odczytać sensor_id z odpowiedzi."
+    exit 1
+fi
+
 echo "✅ Zarejestrowano sensor: $SENSOR_ID"
 
 # 4. Generowanie pliku .env dla docker-compose
