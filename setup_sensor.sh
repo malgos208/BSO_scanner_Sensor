@@ -32,41 +32,33 @@ fi
 
 # 3. Rejestracja w Masterze
 
-# Tymczasowe .env, aby uniknąć ostrzeżeń Docker Compose o brakujących zmiennych
-cat <<EOF > .env
-MASTER_IP=$MASTER_IP
-CLIENT_NAME=$CLIENT_NAME
-SCAN_RANGE=$SCAN_RANGE
-SENSOR_ID=placeholder
-EOF
+#Budowa obrazu sensor_agent
+echo "🔨 Budowanie obrazu sensor_agent..."
+docker compose build sensor_agent
 
 echo "📡 Rejestracja w Masterze ($MASTER_IP)..."
 
-#Budowa obrazu sensor_agent
-docker compose build sensor_agent
-
-REGISTER_OUTPUT=$(docker compose run --rm --no-deps \
+REGISTER_OUTPUT=$(docker run --rm --network host \
     -v "$(pwd)/ssh_keys/id_ed25519.pub:/tmp/pub_key:ro" \
     -v "$(pwd)/register.py:/tmp/register.py:ro" \
     -e CLIENT_NAME="$CLIENT_NAME" \
     -e TOKEN="$TOKEN" \
     -e SCAN_RANGE="$SCAN_RANGE" \
     -e MASTER_IP="$MASTER_IP" \
-    sensor_agent \
+    bso_sensor-sensor_agent \
     python3 /tmp/register.py 2>&1)
 
 REGISTER_EXIT=$?
-echo "$REGISTER_OUTPUT"   # pokaż pełną odpowiedź (z ewentualnymi ostrzeżeniami)
+echo "$REGISTER_OUTPUT"
 
 if [ $REGISTER_EXIT -ne 0 ]; then
     echo "❌ Błąd rejestracji (kod $REGISTER_EXIT)"
     exit 1
 fi
 
-# Wyciągnięcie sensor_id – szukamy 8-znakowego heksadecymalnego ciągu
 SENSOR_ID=$(echo "$REGISTER_OUTPUT" | grep -oE '\b[0-9a-f]{8}\b' | head -1)
 if [ -z "$SENSOR_ID" ]; then
-    echo "❌ Nie udało się odczytać sensor_id z odpowiedzi."
+    echo "❌ Nie udało się odczytać sensor_id."
     exit 1
 fi
 
