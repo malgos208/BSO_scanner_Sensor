@@ -74,7 +74,7 @@ if __name__ == "__main__":
 
         # automatyczna wysyłka co godzinę
         if now - last_sent >= SEND_INTERVAL:
-            log("Automatyczna wysyłka (co 2h)")
+            log("Automatyczna wysyłka (co 3h)")
             send_to_master()
             last_sent = now
 

@@ -15,6 +15,7 @@ services:
   tunnel:
     image: kroniak/ssh-client:latest
     container_name: sensor_tunnel_${CLIENT_NAME}
+    network_mode: host
     volumes:
       - "./ssh_keys:/root/.ssh:ro"
     # Tunelowanie wsteczne: Master:PORT -> Sensor:9390 (jeśli tam jest skaner)
