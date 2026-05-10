@@ -10,8 +10,8 @@ SENSOR_ID = os.getenv("SENSOR_ID")
 CLIENT_NAME = os.getenv("CLIENT_NAME")
 SCAN_RANGE = os.getenv("SCAN_RANGE")
 
-CHECK_INTERVAL = 30        # co 30s sprawdzanie
-SEND_INTERVAL = 7200      # co 2h wysyłka
+CHECK_INTERVAL = 30 # co 30s sprawdzanie
+SEND_INTERVAL = 10800 # co 3 godziny wysyłka
 
 def log(message):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")

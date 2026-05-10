@@ -1,15 +1,16 @@
 #!/bin/bash
-# Użycie: curl -sSL https://raw.githubusercontent.com/malgos208/BSO_scanner_Sensor/main/setup_sensor.sh | sudo bash -s -- <IP_MASTERA> <NAZWA_KLIENTA> <ZAKRES_IP>
+# Użycie: curl -sSL https://raw.githubusercontent.com/malgos208/BSO_scanner_Sensor/main/setup_sensor.sh | sudo bash -s -- <IP_MASTERA> <NAZWA_KLIENTA> <UNIKALNY_TOKEN> <ZAKRES_IP>
 # może być kilka podsieci, np. "192.168.1.0/24 10.0.5.0/24 172.16.0.0/16" lub 192.168.1.1-10
 
-# np. curl -sSL https://raw.githubusercontent.com/malgos208/BSO_scanner_Sensor/main/setup_sensor.sh | sudo bash -s -- 10.0.2.15 MAIN_SA 10.0.2.1-10
+# np. curl -sSL https://raw.githubusercontent.com/malgos208/BSO_scanner_Sensor/main/setup_sensor.sh | sudo bash -s -- 10.0.2.15 MAIN_SA token123 10.0.2.1-10
 
 MASTER_IP=$1
 CLIENT_NAME=$2
-SCAN_RANGE=$3
+TOKEN=$3
+SCAN_RANGE=$4
 
 if [ -z "$SCAN_RANGE" ]; then
-    echo "❌ Błąd: Brak argumentów. Użycie: ./setup_sensor.sh <IP_MASTERA> <NAZWA_KLIENTA> <ZAKRES_IP>"
+    echo "❌ Błąd: Brak argumentów. Użycie: ./setup_sensor.sh <IP_MASTERA> <NAZWA_KLIENTA> <TOKEN> <ZAKRES_IP>"
     exit 1
 fi
 
@@ -28,37 +29,61 @@ if [ ! -f "./ssh_keys/id_ed25519" ]; then
 fi
 PUB_KEY=$(cat ./ssh_keys/id_ed25519.pub)
 
-# 3. Rejestracja w Masterze (zgodnie z Twoim app.py)
+
+# 3. Rejestracja w Masterze
 echo "📡 Rejestracja w Masterze ($MASTER_IP)..."
-RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" \
-    -d "{\"name\":\"$CLIENT_NAME\", \"pub_key\":\"$PUB_KEY\", \"ip_range\":\"$SCAN_RANGE\"}" \
-    "http://$MASTER_IP:5000/register")
+#Budowanie obrazu sensor_agent
+docker compose build sensor_agent
 
-# Wyciągnięcie portu z odpowiedzi JSON
-SENSOR_ID=$(echo $RESPONSE | grep -oP '(?<="sensor_id":")[^"]+')
-PORT=$(echo $RESPONSE | grep -oP '(?<="port":)[0-9]+')
+SENSOR_ID=$(docker compose run --rm \
+    -e CLIENT_NAME="$CLIENT_NAME" \
+    -e PUB_KEY="$PUB_KEY" \
+    -e TOKEN="$TOKEN" \
+    -e SCAN_RANGE="$SCAN_RANGE" \
+    -e MASTER_IP="$MASTER_IP" \
+    sensor_agent \
+    python3 -c "
+import json, urllib.request, sys, os
 
-if [ -z "$PORT" ]; then
-    echo "❌ Błąd rejestracji! Nie można znaleźć portu. Odpowiedź: $RESPONSE"
+payload = json.dumps({
+    'name': os.environ['CLIENT_NAME'],
+    'pub_key': os.environ['PUB_KEY'],
+    'token': os.environ['TOKEN'],
+    'ip_range': os.environ['SCAN_RANGE']
+}).encode()
+
+req = urllib.request.Request(
+    f'http://{os.environ[\"MASTER_IP\"]}:5000/register',
+    data=payload,
+    headers={'Content-Type': 'application/json'}
+)
+
+try:
+    with urllib.request.urlopen(req) as resp:
+        data = json.loads(resp.read())
+        print(data.get('sensor_id', ''))
+except Exception as e:
+    print(f'REGISTRATION_ERROR: {e}', file=sys.stderr)
+    sys.exit(1)
+"
+)
+
+if [ -z "$SENSOR_ID" ] || [[ "$SENSOR_ID" == *"REGISTRATION_ERROR"* ]]; then
+    echo "❌ Błąd rejestracji."
     exit 1
 fi
-if [ -z "$SENSOR_ID" ]; then
-    echo "❌ Błąd rejestracji! Nie można znaleźć sensor_id. Odpowiedź: $RESPONSE"
-    exit 1
-fi
 
-echo "✅ Zarejestrowano: sensor ID: $SENSOR_ID, port tunelu: $PORT"
-
+echo "✅ Zarejestrowano sensor: $SENSOR_ID"
 
 # 4. Generowanie pliku .env dla docker-compose (parametryzacja)
+cat <<EOF > .env
 cat <<EOF > .env
 MASTER_IP=$MASTER_IP
 SENSOR_ID=$SENSOR_ID
 CLIENT_NAME=$CLIENT_NAME
 SCAN_RANGE=$SCAN_RANGE
-TUNNEL_PORT=$PORT
 EOF
 
 # 5. Uruchomienie
-docker compose up -d --build
-echo "🚀 Sensor działa w tle na porcie $PORT."
+docker compose up -d
+echo "🚀 Sensor działa w tle."
