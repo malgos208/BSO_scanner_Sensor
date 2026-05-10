@@ -27,16 +27,25 @@ if [ ! -f "./ssh_keys/id_ed25519" ]; then
     ssh-keygen -t ed25519 -N "" -f ./ssh_keys/id_ed25519 -q
     echo "✅ Wygenerowano klucze SSH."
 fi
-PUB_KEY=$(cat ./ssh_keys/id_ed25519.pub)
+# PUB_KEY=$(cat ./ssh_keys/id_ed25519.pub)
 
 
 # 3. Rejestracja w Masterze
+
+# Tymczasowe .env, aby uniknąć ostrzeżeń Docker Compose o brakujących zmiennych
+cat <<EOF > .env
+MASTER_IP=$MASTER_IP
+CLIENT_NAME=$CLIENT_NAME
+SCAN_RANGE=$SCAN_RANGE
+SENSOR_ID=placeholder
+EOF
+
 echo "📡 Rejestracja w Masterze ($MASTER_IP)..."
 
-#Budowanie obrazu sensor_agent
+#Budowa obrazu sensor_agent
 docker compose build sensor_agent
 
-REGISTER_OUTPUT=$(docker compose run --rm \
+REGISTER_OUTPUT=$(docker compose run --rm --no-deps \
     -v "$(pwd)/ssh_keys/id_ed25519.pub:/tmp/pub_key:ro" \
     -v "$(pwd)/register.py:/tmp/register.py:ro" \
     -e CLIENT_NAME="$CLIENT_NAME" \
@@ -45,17 +54,17 @@ REGISTER_OUTPUT=$(docker compose run --rm \
     -e MASTER_IP="$MASTER_IP" \
     sensor_agent \
     python3 /tmp/register.py 2>&1)
-REGISTER_EXIT=$?
 
-echo "$REGISTER_OUTPUT"
+REGISTER_EXIT=$?
+echo "$REGISTER_OUTPUT"   # pokaż pełną odpowiedź (z ewentualnymi ostrzeżeniami)
 
 if [ $REGISTER_EXIT -ne 0 ]; then
     echo "❌ Błąd rejestracji (kod $REGISTER_EXIT)"
     exit 1
 fi
 
-# Sprawdzamy, czy w wyjściu jest sensor_id
-SENSOR_ID=$(echo "$REGISTER_OUTPUT" | grep -oE '[0-9a-f]{8}')
+# Wyciągnięcie sensor_id – szukamy 8-znakowego heksadecymalnego ciągu
+SENSOR_ID=$(echo "$REGISTER_OUTPUT" | grep -oE '\b[0-9a-f]{8}\b' | head -1)
 if [ -z "$SENSOR_ID" ]; then
     echo "❌ Nie udało się odczytać sensor_id z odpowiedzi."
     exit 1
@@ -63,7 +72,7 @@ fi
 
 echo "✅ Zarejestrowano sensor: $SENSOR_ID"
 
-# 4. Generowanie pliku .env dla docker-compose
+# 4. Generowanie ostatecznego pliku .env dla docker-compose
 cat <<EOF > .env
 MASTER_IP=$MASTER_IP
 SENSOR_ID=$SENSOR_ID
