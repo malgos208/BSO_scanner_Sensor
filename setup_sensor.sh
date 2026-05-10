@@ -36,14 +36,17 @@ echo "📡 Rejestracja w Masterze ($MASTER_IP)..."
 docker compose build sensor_agent
 
 SENSOR_ID=$(docker compose run --rm \
+    -v $(pwd)/ssh_keys/id_ed25519.pub:/tmp/pub_key:ro \
     -e CLIENT_NAME="$CLIENT_NAME" \
-    -e PUB_KEY="$PUB_KEY" \
     -e TOKEN="$TOKEN" \
     -e SCAN_RANGE="$SCAN_RANGE" \
     -e MASTER_IP="$MASTER_IP" \
     sensor_agent \
     python3 -c "
 import json, urllib.request, sys, os
+
+with open('/tmp/pub_key') as f:
+    pub_key = f.read().strip()
 
 payload = json.dumps({
     'name': os.environ['CLIENT_NAME'],
