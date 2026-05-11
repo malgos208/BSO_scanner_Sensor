@@ -18,7 +18,6 @@ services:
     network_mode: host
     volumes:
       - "./ssh_keys:/root/.ssh:ro"
-    # Tunelowanie wsteczne: Master:PORT -> Sensor:9390 (jeśli tam jest skaner)
     command: >
       ssh -o StrictHostKeyChecking=no
       -o ExitOnForwardFailure=yes

@@ -2,7 +2,7 @@
 # Użycie: curl -sSL https://raw.githubusercontent.com/malgos208/BSO_scanner_Sensor/main/setup_sensor.sh | sudo bash -s -- <IP_MASTERA> <NAZWA_KLIENTA> <UNIKALNY_TOKEN> <ZAKRES_IP>
 # może być kilka podsieci, np. "192.168.1.0/24 10.0.5.0/24 172.16.0.0/16" lub 192.168.1.1-10
 
-# np. curl -sSL https://raw.githubusercontent.com/malgos208/BSO_scanner_Sensor/main/setup_sensor.sh | sudo bash -s -- 10.0.2.15 MAIN_SA token123 10.0.2.1-10
+# np. curl -sSL https://raw.githubusercontent.com/malgos208/BSO_scanner_Sensor/main/setup_sensor.sh | sudo bash -s -- 10.0.2.15 FIRMA_XYZ token123 10.0.2.1-10
 
 MASTER_IP=$1
 CLIENT_NAME=$2
@@ -10,11 +10,11 @@ TOKEN=$3
 SCAN_RANGE=$4
 
 if [ -z "$SCAN_RANGE" ]; then
-    echo "❌ Błąd: Brak argumentów. Użycie: ./setup_sensor.sh <IP_MASTERA> <NAZWA_KLIENTA> <TOKEN> <ZAKRES_IP>"
+    echo "[ FAIL ] Błąd: Brak argumentów. Użycie: ./setup_sensor.sh <IP_MASTERA> <NAZWA_KLIENTA> <TOKEN> <ZAKRES_IP>"
     exit 1
 fi
 
-echo "🚀 Przygotowywanie Sensora dla: $CLIENT_NAME"
+echo "Przygotowywanie Sensora dla: $CLIENT_NAME"
 
 # 1. Pobranie plików z repozytorium
 git clone https://github.com/malgos208/BSO_scanner_Sensor.git bso_sensor_tmp
@@ -25,7 +25,7 @@ rm -rf bso_sensor_tmp
 mkdir -p ssh_keys
 if [ ! -f "./ssh_keys/id_ed25519" ]; then
     ssh-keygen -t ed25519 -N "" -f ./ssh_keys/id_ed25519 -q
-    echo "✅ Wygenerowano klucze SSH."
+    echo "[ OK ] Wygenerowano klucze SSH."
 fi
 # PUB_KEY=$(cat ./ssh_keys/id_ed25519.pub)
 
@@ -33,10 +33,10 @@ fi
 # 3. Rejestracja w Masterze
 
 #Budowa obrazu sensor_agent
-echo "🔨 Budowanie obrazu sensor_agent..."
+echo "Budowanie obrazu sensor_agent..."
 docker compose build sensor_agent
 
-echo "📡 Rejestracja w Masterze ($MASTER_IP)..."
+echo "Rejestracja w Masterze ($MASTER_IP)..."
 
 REGISTER_OUTPUT=$(docker run --rm --network host \
     -v "$(pwd)/ssh_keys/id_ed25519.pub:/tmp/pub_key:ro" \
@@ -52,17 +52,17 @@ REGISTER_EXIT=$?
 echo "$REGISTER_OUTPUT"
 
 if [ $REGISTER_EXIT -ne 0 ]; then
-    echo "❌ Błąd rejestracji (kod $REGISTER_EXIT)"
+    echo "[ FAIL ] Błąd rejestracji (kod $REGISTER_EXIT)"
     exit 1
 fi
 
 SENSOR_ID=$(echo "$REGISTER_OUTPUT" | grep -oE '\b[0-9a-f]{8}\b' | head -1)
 if [ -z "$SENSOR_ID" ]; then
-    echo "❌ Nie udało się odczytać sensor_id."
+    echo "[ FAIL ] Nie udało się odczytać sensor_id."
     exit 1
 fi
 
-echo "✅ Zarejestrowano sensor: $SENSOR_ID"
+echo "[ OK ] Zarejestrowano sensor: $SENSOR_ID"
 
 # 4. Generowanie ostatecznego pliku .env dla docker-compose
 cat <<EOF > .env
@@ -74,4 +74,4 @@ EOF
 
 # 5. Uruchomienie
 docker compose up -d --remove-orphans # --remove-orphans usuwa stare kontenery
-echo "🚀 Sensor działa w tle."
+echo "[ OK ] Sensor działa w tle."
